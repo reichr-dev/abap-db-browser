@@ -466,12 +466,22 @@ CLASS zcl_dbbr_cds_selection_util IMPLEMENTATION.
 
   METHOD before_selection.
 
+***    DATA(lv_cond) = get_virtual_elem_handler( )->filter_element(
+***      EXPORTING
+***        io_cds_view  = mo_cds_view
+***        io_tabfields = mo_tabfields
+***        iv_element   = 'DAIRYRAWMATERIAL'
+***        iv_operator  = 'EQ'
+***        iv_value     = 'H10001' ).
+***
     IF ms_technical_info-calculate_virtual_element = abap_true
       AND mo_tabfields->has_virtual_element_fields(
             if_consider_output_only = ms_technical_info-use_reduced_memory ).
       mark_virtual_elem_requested( ).
     ENDIF.
     super->before_selection( ).
+***    APPEND INITIAL LINE TO mt_where ASSIGNING FIELD-SYMBOL(<fs_where_cond>).
+***    <fs_where_cond> = | AND ( { lv_cond } ) |.
 
   ENDMETHOD.
 
@@ -482,7 +492,7 @@ CLASS zcl_dbbr_cds_selection_util IMPLEMENTATION.
 * through layout change at any time
     DATA(lt_fields) = mo_tabfields->get_fields_for_db_selection(
       if_consider_virtual_element = abap_true
-      if_consider_output_only     = xsdbool( ms_technical_info-use_reduced_memory = abap_true ) ).
+      if_consider_output_only     = ms_technical_info-use_reduced_memory ).
 
     mf_handle_virtual_elem = abap_true.
 

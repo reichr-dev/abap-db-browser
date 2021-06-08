@@ -166,3 +166,44 @@ CLASS lcl_sadl_exit_handler IMPLEMENTATION.
   ENDMETHOD.
 
 ENDCLASS.
+
+CLASS lcl_engine DEFINITION INHERITING FROM cl_sadl_query_engine_osql.
+
+  PUBLIC SECTION.
+    METHODS create_where_clause IMPORTING it_sadl_conditions            TYPE if_sadl_query_engine_types=>tt_complex_condition
+                                          is_value_set_condition        TYPE if_sadl_query_engine_types=>ty_value_set_condition OPTIONAL
+                                          io_sql                        TYPE REF TO cl_sadl_sql_statement
+                                          is_parameters                 TYPE ty_sorted_parameters OPTIONAL
+                                EXPORTING et_needed_entities_for_where  TYPE tt_sorted_strings
+                                          ev_condition_is_contradictory TYPE abap_bool
+                                RAISING   cx_sadl_contract_violation.
+
+  PROTECTED SECTION.
+    METHODS get_abap_value_ref REDEFINITION.
+    METHODS check_view_metadata REDEFINITION.
+ENDCLASS.
+
+CLASS lcl_engine IMPLEMENTATION.
+  METHOD get_abap_value_ref.
+    GET REFERENCE OF iv_string_value INTO rr_value.
+  ENDMETHOD.
+
+  METHOD check_view_metadata.
+    RETURN. "no consistency checks
+  ENDMETHOD.
+
+  METHOD create_where_clause.
+
+    generate_where_clause(
+      EXPORTING
+        it_sadl_conditions            = it_sadl_conditions
+        is_value_set_condition        = is_value_set_condition
+        io_sql                        = io_sql
+        is_parameters                 = is_parameters
+      IMPORTING
+        et_needed_entities_for_where  = et_needed_entities_for_where
+        ev_condition_is_contradictory = ev_condition_is_contradictory
+    ).
+
+  ENDMETHOD.
+ENDCLASS.

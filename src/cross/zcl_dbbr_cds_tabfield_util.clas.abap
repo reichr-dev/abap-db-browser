@@ -33,6 +33,7 @@ CLASS zcl_dbbr_cds_tabfield_util DEFINITION
     CONSTANTS:
       BEGIN OF c_annotation_objectmodel,
         virtual_element TYPE string VALUE 'OBJECTMODEL.VIRTUALELEMENT',
+        virtual_filter  TYPE string VALUE 'OBJECTMODEL.FILTER.TRANSFORMEDBY',
       END OF c_annotation_objectmodel.
 ENDCLASS.
 
@@ -134,8 +135,11 @@ CLASS zcl_dbbr_cds_tabfield_util IMPLEMENTATION.
     DATA(lr_addtext_bl) = zcl_dbbr_addtext_bl=>get_instance( ).
     DATA(lo_altcoltext_f) = NEW zcl_dbbr_altcoltext_factory( ).
 
-    DATA(lt_annotation) = io_cds_view->get_annotations(
+    DATA(lt_virtual_elem_anno) = io_cds_view->get_annotations(
       it_annotation_name = VALUE #( ( sign = 'I' option = 'EQ' low = c_annotation_objectmodel-virtual_element ) ) ).
+
+    DATA(lt_virtual_filter_anno) = io_cds_view->get_annotations(
+      it_annotation_name = VALUE #( ( sign = 'I' option = 'EQ' low = c_annotation_objectmodel-virtual_filter ) ) ).
 
     LOOP AT io_cds_view->get_columns( ) ASSIGNING FIELD-SYMBOL(<ls_column>).
       CLEAR: lv_rollname,
@@ -173,7 +177,8 @@ CLASS zcl_dbbr_cds_tabfield_util IMPLEMENTATION.
         ref_tab            = <ls_column>-reftable
         alt_long_text      = ls_altcoltext-alt_long_text
         alt_medium_text    = ls_altcoltext-alt_short_text
-        is_virtual_element = xsdbool( line_exists( lt_annotation[ fieldname = <ls_column>-fieldname ] ) )
+        is_virtual_element = xsdbool( line_exists( lt_virtual_elem_anno[ fieldname = <ls_column>-fieldname ] ) )
+        is_virtual_filter  = xsdbool( line_exists( lt_virtual_filter_anno[ fieldname = <ls_column>-fieldname ] ) )
       ).
 
       IF io_custom_f4_map IS BOUND.

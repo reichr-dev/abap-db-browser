@@ -631,7 +631,8 @@ CLASS zcl_dbbr_selscreen_util IMPLEMENTATION.
               sign             = default_sign
               low              = default_low
               has_cust_f4_help = has_custom_f4
-              virtual_element  = is_virtual_element ).
+              virtual_element  = is_virtual_element
+              virtual_filter   = is_virtual_filter ).
 
 *... fill descriptions
     IF is_tablefield-alt_long_text IS NOT INITIAL.
