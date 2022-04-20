@@ -89,4 +89,6 @@ INTERFACE zif_dbbr_user_settings_ids
   CONSTANTS c_async_max_rows_determination TYPE string VALUE 'P_XAMRDE' ##NO_TEXT.
   "! Type - SAP_BOOL
   CONSTANTS c_disable_auto_max_rows_det TYPE string VALUE 'P_XDAMRD' ##NO_TEXT.
+   "! Type - SAP_BOOL
+  CONSTANTS c_activate_paging TYPE string VALUE 'P_PAGING' ##NO_TEXT.
 ENDINTERFACE.

@@ -92,6 +92,7 @@ CLASS zcl_dbbr_user_settings_sc DEFINITION
         color_cds_calculated_fields   TYPE REF TO zdbbr_user_settings_a-color_cds_calculated_fields,
         async_max_rows_determination  TYPE REF TO zdbbr_user_settings_a-async_max_rows_determination,
         disable_auto_max_rows_det     TYPE REF TO zdbbr_user_settings_a-disable_auto_max_rows_det,
+        activate_paging               TYPE REF TO zdbbr_user_settings_a-activate_paging,
       END OF ms_user_settings_refs .
     DATA mf_data_changed TYPE abap_bool .
 
@@ -104,7 +105,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_dbbr_user_settings_sc IMPLEMENTATION.
+CLASS ZCL_DBBR_USER_SETTINGS_SC IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -162,8 +163,11 @@ CLASS zcl_dbbr_user_settings_sc IMPLEMENTATION.
         ignore_error_virt_elem_calc   c_ignore_error_virt_elem_calc,
         color_cds_calculated_fields   c_color_cds_calculated_fields,
         async_max_rows_determination  c_async_max_rows_determination,
-        disable_auto_max_rows_det     c_disable_auto_max_rows_det.
+        disable_auto_max_rows_det     c_disable_auto_max_rows_det,
+        activate_paging               c_activate_paging.
+
   ENDMETHOD.
+
 
   METHOD initialize_screen.
     CHECK mf_first_call = abap_true.
@@ -173,6 +177,7 @@ CLASS zcl_dbbr_user_settings_sc IMPLEMENTATION.
       cs_tabs-activetab = mv_start_tab.
     ENDIF.
   ENDMETHOD.
+
 
   METHOD get_settings.
     rs_settings = ms_user_settings.

@@ -363,6 +363,12 @@
      <LENGTH>94</LENGTH>
     </item>
     <item>
+     <ID>I</ID>
+     <KEY>T46</KEY>
+     <ENTRY>Activate Paging</ENTRY>
+     <LENGTH>20</LENGTH>
+    </item>
+    <item>
      <ID>S</ID>
      <KEY>P_ASNVMO</KEY>
      <ENTRY>Selection Mode for Association</ENTRY>

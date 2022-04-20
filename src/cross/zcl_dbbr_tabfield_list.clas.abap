@@ -291,6 +291,7 @@ CLASS zcl_dbbr_tabfield_list DEFINITION
       RETURNING
         VALUE(rt_fields)     TYPE zdbbr_tabfield_info_ui_itab .
 
+    "! <p class="shorttext synchronized" lang="en">Returns fields which are in the database</p>
     METHODS get_fields_for_db_selection
       IMPORTING
         if_consider_virtual_element TYPE abap_bool OPTIONAL
@@ -298,13 +299,17 @@ CLASS zcl_dbbr_tabfield_list DEFINITION
       RETURNING
         VALUE(rt_fields)            TYPE zdbbr_tabfield_info_ui_itab.
 
+    "! <p class="shorttext synchronized" lang="en">Checks any fields are virtual elements</p>
     METHODS has_virtual_element_fields
       IMPORTING
         if_consider_output_only   TYPE abap_bool OPTIONAL
       RETURNING
         VALUE(rf_virtual_element) TYPE abap_bool.
 
-
+    "! <p class="shorttext synchronized" lang="en">Returns key fields</p>
+    METHODS get_key_fields
+      RETURNING
+        VALUE(rt_fields) TYPE zdbbr_tabfield_info_ui_itab .
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -365,7 +370,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_dbbr_tabfield_list IMPLEMENTATION.
+CLASS ZCL_DBBR_TABFIELD_LIST IMPLEMENTATION.
 
 
   METHOD active_field_exists.
@@ -826,10 +831,6 @@ CLASS zcl_dbbr_tabfield_list IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
-  METHOD get_fields_ref.
-    rr_fields_ref = REF #( mt_fields ).
-  ENDMETHOD.
-
 
   METHOD get_field_by_sql_name.
     rs_tabfield = mt_fields[ sql_fieldname = iv_sql_fieldname ].
@@ -896,10 +897,6 @@ CLASS zcl_dbbr_tabfield_list IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD get_table_ref_by_alias.
-    rr_table = REF #( mt_tables[ tabname_alias = iv_tabname_alias ] OPTIONAL ).
-  ENDMETHOD.
-
   METHOD get_table_list.
     rt_tables = mt_tables.
 
@@ -919,6 +916,11 @@ CLASS zcl_dbbr_tabfield_list IMPLEMENTATION.
 
   METHOD get_where_for_active_check.
     rv_where = ms_where-field_is_active.
+  ENDMETHOD.
+
+
+  METHOD get_table_ref_by_alias.
+    rr_table = REF #( mt_tables[ tabname_alias = iv_tabname_alias ] OPTIONAL ).
   ENDMETHOD.
 
 
@@ -1318,6 +1320,7 @@ CLASS zcl_dbbr_tabfield_list IMPLEMENTATION.
     rv_size = lines( mt_fields ).
   ENDMETHOD.
 
+
   METHOD get_active_fields.
     DATA: lt_where TYPE STANDARD TABLE OF string.
 
@@ -1351,9 +1354,19 @@ CLASS zcl_dbbr_tabfield_list IMPLEMENTATION.
 
   ENDMETHOD.
 
+
   METHOD get_fields.
     rt_fields = mt_fields.
   ENDMETHOD.
+
+
+  METHOD get_key_fields.
+
+    rt_fields = mt_fields.
+    DELETE rt_fields WHERE is_key = abap_false.
+
+  ENDMETHOD.
+
 
   METHOD get_fields_for_db_selection.
 
@@ -1372,6 +1385,12 @@ CLASS zcl_dbbr_tabfield_list IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
+
+  METHOD get_fields_ref.
+    rr_fields_ref = REF #( mt_fields ).
+  ENDMETHOD.
+
+
   METHOD has_virtual_element_fields.
 
     rf_virtual_element = SWITCH #( if_consider_output_only
@@ -1380,5 +1399,4 @@ CLASS zcl_dbbr_tabfield_list IMPLEMENTATION.
                                             output_active      = abap_true ] ) ) ).
 
   ENDMETHOD.
-
 ENDCLASS.

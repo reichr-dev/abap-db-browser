@@ -5,11 +5,13 @@ CLASS zcl_dbbr_selection_util DEFINITION
   CREATE PUBLIC
 
   GLOBAL FRIENDS zcl_dbbr_selection_controller
-                 zcl_dbbr_text_field_ui_util.
+                 zcl_dbbr_text_field_ui_util
+                 zcl_dbbr_paging_util.
 
   PUBLIC SECTION.
 
-    INTERFACES zif_dbbr_screen_util .
+    INTERFACES: zif_dbbr_screen_util,
+      zif_dbbr_selection_lines .
 
     ALIASES get_deactivated_functions
       FOR zif_dbbr_screen_util~get_deactivated_functions .
@@ -135,6 +137,7 @@ CLASS zcl_dbbr_selection_util DEFINITION
         VALUE(rv_result)       TYPE string.
     "! <p class="shorttext synchronized" lang="en">Unregisters any active event handlers</p>
     METHODS unregister_evt_handlers.
+
   PROTECTED SECTION.
 
     TYPES:
@@ -240,6 +243,7 @@ CLASS zcl_dbbr_selection_util DEFINITION
     DATA mt_source_where_cond TYPE string_table.
     DATA mv_source_params TYPE string.
     DATA mo_gui_timer TYPE REF TO cl_gui_timer.
+    DATA mv_offset TYPE i.
 
     "! <p class="shorttext synchronized" lang="en">Adds column for hiding rows</p>
     METHODS add_hide_flag_column .
@@ -393,7 +397,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_dbbr_selection_util IMPLEMENTATION.
+CLASS ZCL_DBBR_SELECTION_UTIL IMPLEMENTATION.
 
 
   METHOD add_hide_flag_column.
@@ -936,6 +940,7 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
         IF ls_field-convexit <> space.
           ls_field-no_convext = abap_true.
           CLEAR ls_field-edit_mask.
+          ls_field-convexit = 'EMPTY'.
         ENDIF.
       ELSE. " use conversion exit
         IF  ls_field-convexit = space.
@@ -1081,34 +1086,45 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
     mo_tabfields->switch_mode( zif_dbbr_c_global=>c_field_chooser_modes-sort ).
 
     " check if there is at least one `sort`-field
-    CHECK mo_tabfields->checked_field_exists( ).
+    IF mo_tabfields->checked_field_exists( ).
 
-    mo_tabfields->sort( ).
-    mo_tabfields->initialize_iterator( if_for_active = abap_true ).
+      mo_tabfields->sort( ).
+      mo_tabfields->initialize_iterator( if_for_active = abap_true ).
 
-    WHILE mo_tabfields->has_more_lines( ).
-      DATA(lr_field) = mo_tabfields->get_next_entry( ).
+      WHILE mo_tabfields->has_more_lines( ).
+        DATA(lr_field) = mo_tabfields->get_next_entry( ).
 
-      CHECK lr_field->is_virtual_join_field = abap_false.
+        CHECK lr_field->is_virtual_join_field = abap_false.
 
-      DATA(lv_order_by_type) = SWITCH string(
-        lr_field->sort_direction
-        WHEN zif_dbbr_c_global=>c_sort_direction-ascending THEN 'ASCENDING'
-        WHEN zif_dbbr_c_global=>c_sort_direction-descending THEN 'DESCENDING'
-      ).
-      mt_order_by = VALUE #( BASE mt_order_by ( |{ lr_field->sql_fieldname_long } { lv_order_by_type }, | ) ).
+        DATA(lv_order_by_type) = SWITCH string(
+          lr_field->sort_direction
+          WHEN zif_dbbr_c_global=>c_sort_direction-ascending THEN 'ASCENDING'
+          WHEN zif_dbbr_c_global=>c_sort_direction-descending THEN 'DESCENDING'
+        ).
+        mt_order_by = VALUE #( BASE mt_order_by ( |{ lr_field->sql_fieldname_long } { lv_order_by_type }, | ) ).
 
-      " if field will not be displayed prevent sorting in ALV -> not possible as this field does not exist in the fieldcatalog
-      CHECK lr_field->output_active = abap_true.
+        " if field will not be displayed prevent sorting in ALV -> not possible as this field does not exist in the fieldcatalog
+        CHECK lr_field->output_active = abap_true.
 
-      mt_sort_alv = VALUE #(
-        BASE mt_sort_alv
-        ( spos       = lr_field->sort_order
-          fieldname  = lr_field->alv_fieldname
-          up         = xsdbool( lr_field->sort_direction = zif_dbbr_c_global=>c_sort_direction-ascending )
-          down       = xsdbool( lr_field->sort_direction = zif_dbbr_c_global=>c_sort_direction-descending ) )
-      ).
-    ENDWHILE.
+        mt_sort_alv = VALUE #(
+          BASE mt_sort_alv
+          ( spos       = lr_field->sort_order
+            fieldname  = lr_field->alv_fieldname
+            up         = xsdbool( lr_field->sort_direction = zif_dbbr_c_global=>c_sort_direction-ascending )
+            down       = xsdbool( lr_field->sort_direction = zif_dbbr_c_global=>c_sort_direction-descending ) )
+        ).
+      ENDWHILE.
+
+    ELSE.
+      IF ms_technical_info-activate_paging = abap_true.
+        DATA(lt_keys) = mo_tabfields->get_key_fields( ).
+
+        LOOP AT lt_keys ASSIGNING FIELD-SYMBOL(<ls_key>).
+          mt_order_by = VALUE #( BASE mt_order_by ( |{ <ls_key>-sql_fieldname_long }, | ) ).
+        ENDLOOP.
+
+      ENDIF.
+    ENDIF.
 
     IF mt_order_by IS NOT INITIAL.
       ASSIGN mt_order_by[ lines( mt_order_by ) ] TO FIELD-SYMBOL(<lv_last_field>).
@@ -1538,9 +1554,11 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
                             AND reference_alv_fieldname NOT IN lt_has_text_field.
   ENDMETHOD.
 
+
   METHOD ignore_empty_result.
     rf_ignore_empty = abap_false.
   ENDMETHOD.
+
 
   METHOD init_navigation_breadcrumbs.
     CHECK ir_container IS BOUND.
@@ -1639,10 +1657,12 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
         it_order_by = mt_order_by
         it_group_by = mt_group_by
         it_having   = mt_having
-        iv_max_size = ms_technical_info-max_lines ).
+        iv_max_size = ms_technical_info-max_lines
+        iv_offset   = COND #( WHEN ms_technical_info-activate_paging = abap_true THEN mv_offset ) ).
       SET HANDLER on_count_async_finished FOR mo_sql_selection.
     ELSE.
       mo_sql_selection->set_max_rows( ms_technical_info-max_lines ).
+      mo_sql_selection->set_offset( mv_offset ).
     ENDIF.
 
     " either select the data or, only count the lines for the where clause
@@ -1913,6 +1933,7 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
 
   ENDMETHOD.
 
+
   METHOD get_sel_count_text.
     IF mf_custom_query_active = abap_true OR ms_technical_info-disable_auto_max_rows_det = abap_true.
       rv_result = |{ iv_filtered_line_count NUMBER = USER } Entries|.
@@ -1925,6 +1946,7 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
+
   METHOD unregister_evt_handlers.
     IF mo_sql_selection IS NOT INITIAL.
       mo_sql_selection->unregister_evt_handlers( ).
@@ -1934,6 +1956,7 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
       ENDIF.
     ENDIF.
   ENDMETHOD.
+
 
   METHOD zif_dbbr_screen_util~get_deactivated_functions.
     result = mt_exclude_function.
@@ -2032,6 +2055,7 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
     ENDCASE.
   ENDMETHOD.
 
+
   METHOD after_selection.
 
     execute_formula_for_lines( ).
@@ -2039,6 +2063,7 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
     set_miscinfo_for_selected_data( ).
 
   ENDMETHOD.
+
 
   METHOD before_selection.
 
@@ -2086,6 +2111,7 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
 
   ENDMETHOD.
 
+
   METHOD execute_selection.
 
     before_selection( ).
@@ -2106,6 +2132,7 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
         ef_first_select = abap_true.
   ENDMETHOD.
 
+
   METHOD refresh_selection.
     TRY.
         select_data( if_refresh_only = abap_true ).
@@ -2125,17 +2152,21 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
     ENDTRY.
   ENDMETHOD.
 
+
   METHOD execute_function.
     RETURN.
   ENDMETHOD.
+
 
   METHOD has_result.
     rf_has_result = xsdbool( mv_selected_lines > 0 ).
   ENDMETHOD.
 
+
   METHOD on_count_async_finished.
     mv_max_lines_existing = ev_count.
   ENDMETHOD.
+
 
   METHOD on_timer_finished.
     IF mv_max_lines_existing > 0.
@@ -2145,4 +2176,21 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
     ENDIF.
   ENDMETHOD.
 
+
+  METHOD zif_dbbr_selection_lines~get_max_lines_existing.
+    rv_max_lines_existing = mv_max_lines_existing.
+  ENDMETHOD.
+
+
+  METHOD zif_dbbr_selection_lines~update_offset.
+    mv_offset = COND #(
+      WHEN ( iv_page - 1 )  * ms_technical_info-max_lines < mv_max_lines_existing
+        THEN ( iv_page - 1 ) * ms_technical_info-max_lines
+          ELSE mv_max_lines_existing ).
+  ENDMETHOD.
+
+
+  METHOD zif_dbbr_selection_lines~get_max_lines.
+    rv_max_lines = ms_technical_info-max_lines.
+  ENDMETHOD.
 ENDCLASS.

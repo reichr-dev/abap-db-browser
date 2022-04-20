@@ -17,6 +17,7 @@ CLASS zcl_dbbr_sql_selection DEFINITION
           it_group_by        TYPE string_table OPTIONAL
           it_having          TYPE string_table OPTIONAL
           iv_max_size        TYPE i
+          iv_offset          TYPE i OPTIONAL
         RETURNING
           VALUE(ro_instance) TYPE REF TO zcl_dbbr_sql_selection
         RAISING
@@ -72,7 +73,10 @@ CLASS zcl_dbbr_sql_selection DEFINITION
         IMPORTING
           it_from TYPE string_table,
       "! <p class="shorttext synchronized" lang="en">Unregisters handlers for async query exec.</p>
-      unregister_evt_handlers.
+      unregister_evt_handlers,
+      set_offset
+        IMPORTING
+          iv_offset TYPE i.
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -88,7 +92,8 @@ CLASS zcl_dbbr_sql_selection DEFINITION
       "! List of Strings
       mt_group_by TYPE string_table,
       mt_having   TYPE string_table,
-      mv_max_size TYPE i.
+      mv_max_size TYPE i,
+      mv_offset   TYPE i.
 
     METHODS: fill_having
       CHANGING
@@ -144,7 +149,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_dbbr_sql_selection IMPLEMENTATION.
+CLASS ZCL_DBBR_SQL_SELECTION IMPLEMENTATION.
 
 
   METHOD create.
@@ -157,6 +162,7 @@ CLASS zcl_dbbr_sql_selection IMPLEMENTATION.
     ro_instance->mt_order_by = it_order_by.
     ro_instance->mt_group_by = it_group_by.
     ro_instance->mv_max_size = iv_max_size.
+    ro_instance->mv_offset   = iv_offset.
 
     SET HANDLER ro_instance->on_async_query_finished ACTIVATION 'X'.
   ENDMETHOD.
@@ -199,6 +205,7 @@ CLASS zcl_dbbr_sql_selection IMPLEMENTATION.
             previous = lx_root.
     ENDTRY.
   ENDMETHOD.
+
 
   METHOD determine_size.
     TRY.
@@ -296,6 +303,7 @@ CLASS zcl_dbbr_sql_selection IMPLEMENTATION.
     ENDLOOP.
   ENDMETHOD.
 
+
   METHOD fill_from.
     DATA: lv_from TYPE string.
 
@@ -380,14 +388,28 @@ CLASS zcl_dbbr_sql_selection IMPLEMENTATION.
     DATA: lx_root TYPE REF TO cx_root.
 
     TRY.
-        SELECT (mt_select)
-          FROM (mt_from)
-          WHERE (mt_where)
-          GROUP BY (mt_group_by)
-          HAVING (mt_having)
-          ORDER BY (mt_order_by)
-          INTO CORRESPONDING FIELDS OF TABLE @et_data
-          UP TO @mv_max_size ROWS.
+
+        IF mv_offset IS INITIAL.
+          SELECT (mt_select)
+            FROM (mt_from)
+            WHERE (mt_where)
+            GROUP BY (mt_group_by)
+            HAVING (mt_having)
+            ORDER BY (mt_order_by)
+            INTO CORRESPONDING FIELDS OF TABLE @et_data
+            UP TO @mv_max_size ROWS.
+        ELSE.
+          SELECT (mt_select)
+            FROM (mt_from)
+            WHERE (mt_where)
+            GROUP BY (mt_group_by)
+            HAVING (mt_having)
+            ORDER BY (mt_order_by)
+            INTO CORRESPONDING FIELDS OF TABLE @et_data
+            OFFSET @mv_offset
+            UP TO @mv_max_size ROWS.
+        ENDIF.
+
       CATCH cx_root INTO lx_root.
         RAISE EXCEPTION TYPE zcx_dbbr_selection_common
           EXPORTING
@@ -406,6 +428,7 @@ CLASS zcl_dbbr_sql_selection IMPLEMENTATION.
     mt_from = it_from.
   ENDMETHOD.
 
+
   METHOD get_select_sql.
     DATA: lt_sql_lines TYPE string_table.
 
@@ -418,6 +441,7 @@ CLASS zcl_dbbr_sql_selection IMPLEMENTATION.
 
     CONCATENATE LINES OF lt_sql_lines INTO rv_select_sql SEPARATED BY cl_abap_char_utilities=>cr_lf.
   ENDMETHOD.
+
 
   METHOD create_count_query_for_cte.
     DATA: lt_sql_lines TYPE string_table,
@@ -473,8 +497,8 @@ CLASS zcl_dbbr_sql_selection IMPLEMENTATION.
   METHOD on_async_query_finished.
     DATA: lv_count TYPE zdbbr_no_of_lines.
     FIELD-SYMBOLS: <lt_data> TYPE table.
-
     ASSIGN er_data->* TO <lt_data>.
+
     IF sy-subrc = 0 AND lines( <lt_data> ) > 1.
       lv_count = lines( <lt_data> ).
     ELSE.
@@ -489,4 +513,8 @@ CLASS zcl_dbbr_sql_selection IMPLEMENTATION.
         ev_count = lv_count.
   ENDMETHOD.
 
+
+  METHOD set_offset.
+    mv_offset = iv_offset.
+  ENDMETHOD.
 ENDCLASS.

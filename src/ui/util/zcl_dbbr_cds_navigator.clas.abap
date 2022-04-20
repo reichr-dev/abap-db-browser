@@ -76,7 +76,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_dbbr_cds_navigator IMPLEMENTATION.
+CLASS ZCL_DBBR_CDS_NAVIGATOR IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -284,6 +284,20 @@ CLASS zcl_dbbr_cds_navigator IMPLEMENTATION.
     handle_messages( ).
   ENDMETHOD.
 
+
+  METHOD determine_param_string.
+
+    mv_params = zcl_dbbr_cds_param_util=>build_param_string(
+      iv_param_indentation    = strlen( iv_cds_view_name )
+      if_sep_param_by_newline = abap_false
+      it_param_values         = request_param_values(
+        it_params        = it_params
+        iv_cds_view_name = iv_cds_view_name
+        io_tabfields     = io_tabfields ) ).
+
+  ENDMETHOD.
+
+
   METHOD request_param_values.
 
     DATA(lo_custom_f4_map) = NEW zcl_dbbr_custom_f4_map( ).
@@ -311,17 +325,4 @@ CLASS zcl_dbbr_cds_navigator IMPLEMENTATION.
     ENDIF.
 
   ENDMETHOD.
-
-  METHOD determine_param_string.
-
-    mv_params = zcl_dbbr_cds_param_util=>build_param_string(
-      iv_param_indentation    = strlen( iv_cds_view_name )
-      if_sep_param_by_newline = abap_false
-      it_param_values         = request_param_values(
-        it_params        = it_params
-        iv_cds_view_name = iv_cds_view_name
-        io_tabfields     = io_tabfields ) ).
-
-  ENDMETHOD.
-
 ENDCLASS.

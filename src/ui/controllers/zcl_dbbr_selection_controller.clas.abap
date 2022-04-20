@@ -112,9 +112,10 @@ CLASS zcl_dbbr_selection_controller DEFINITION
     DATA mf_default_alv_var_active TYPE abap_bool .
     DATA mo_util TYPE REF TO zcl_dbbr_selection_util .
     DATA mf_has_parent TYPE abap_bool .
-    DATA mo_splitter_container TYPE REF TO cl_gui_splitter_container .
+    DATA mo_splitter_container_new TYPE REF TO zcl_uitb_gui_splitter_cont .
     DATA mo_output_container TYPE REF TO cl_gui_container .
-    DATA: mo_textfield_util TYPE REF TO zcl_dbbr_text_field_ui_util.
+    DATA mo_textfield_util TYPE REF TO zcl_dbbr_text_field_ui_util.
+    DATA mo_paging_util TYPE REF TO zcl_dbbr_paging_util.
 
     "! <p class="shorttext synchronized" lang="en">Indicates if the ALV header needs a refresh</p>
     METHODS alv_headers_needs_refresh
@@ -243,7 +244,9 @@ CLASS zcl_dbbr_selection_controller DEFINITION
         VALUE(rf_rows_identical) TYPE boolean .
     METHODS process_filter_change .
     "! <p class="shorttext synchronized" lang="en">Refreshes the data by performing a new select</p>
-    METHODS refresh .
+    METHODS refresh.
+    METHODS on_refresh_page
+        FOR EVENT refresh_page OF zcl_dbbr_paging_util.
     METHODS remove_filt_from_selected_cols .
     METHODS remove_grouping .
     METHODS reset_alv_layout .
@@ -283,7 +286,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_dbbr_selection_controller IMPLEMENTATION.
+CLASS ZCL_DBBR_SELECTION_CONTROLLER IMPLEMENTATION.
 
 
   METHOD alv_headers_needs_refresh.
@@ -611,10 +614,12 @@ CLASS zcl_dbbr_selection_controller IMPLEMENTATION.
 *... create util instance for handling selection stuff
     mo_util = zcl_dbbr_selection_util=>create_util( is_selection_data ).
     mo_textfield_util = NEW zcl_dbbr_text_field_ui_util( mo_util ).
+    mo_paging_util = NEW #( io_selection_util = mo_util ).
 
     SET HANDLER:
       on_selection_finish FOR mo_util,
-      on_no_data FOR mo_util.
+      on_no_data FOR mo_util,
+      on_refresh_page FOR mo_paging_util.
 
     mf_first_call = abap_true.
 
@@ -1115,18 +1120,6 @@ CLASS zcl_dbbr_selection_controller IMPLEMENTATION.
     mo_alv_grid->refresh_table_display( is_stable = VALUE #( row = abap_true col = abap_true ) ).
   ENDMETHOD.
 
-  METHOD show_all_cols.
-    mo_alv_grid->get_frontend_fieldcatalog( IMPORTING et_fieldcatalog = DATA(lt_fieldcat) ).
-
-    LOOP AT lt_fieldcat ASSIGNING FIELD-SYMBOL(<ls_fcat>) WHERE tech = abap_false.
-      <ls_fcat>-no_out = abap_false.
-    ENDLOOP.
-
-    mo_alv_grid->set_frontend_fieldcatalog( lt_fieldcat ).
-
-    mo_alv_grid->refresh_table_display( is_stable = VALUE #( row = abap_true col = abap_true ) ).
-  ENDMETHOD.
-
 
   METHOD hide_selected_rows.
 *&---------------------------------------------------------------------*
@@ -1173,7 +1166,7 @@ CLASS zcl_dbbr_selection_controller IMPLEMENTATION.
 
 
   METHOD init_grid_control.
-    DATA: lr_alv_container TYPE REF TO cl_gui_container.
+    DATA: lr_alv_container  TYPE REF TO cl_gui_container.
 
     FIELD-SYMBOLS: <lt_table> TYPE table.
 
@@ -1186,28 +1179,55 @@ CLASS zcl_dbbr_selection_controller IMPLEMENTATION.
     mo_output_container = cl_gui_container=>default_screen.
 
     IF mf_has_parent = abap_true.
-      mo_splitter_container = NEW #(
-        parent  = mo_output_container
-        rows    = 2
-        columns = 1
-      ).
 
-      mo_splitter_container->set_row_mode( cl_gui_splitter_container=>mode_absolute ).
-      mo_splitter_container->set_row_height( id = 1 height = 65 ).
+      mo_splitter_container_new = NEW #(
+        iv_elements              = COND #( WHEN mo_util->ms_technical_info-activate_paging IS INITIAL THEN 2 ELSE 3 )
+        iv_size                  = COND #( WHEN mo_util->ms_technical_info-activate_paging IS INITIAL THEN '65:*' ELSE '65:*:26' )
+        io_parent                = mo_output_container
+        if_auto_def_progid_dynnr = abap_true
+        if_no_border             = abap_true ).
+
+      mo_splitter_container_new->set_all_sash_properties(
+        if_visible = abap_false ) .
+
 *.,.. retrieve container for alv creation
-      lr_alv_container = mo_splitter_container->get_container( column = 1 row = 2 ).
+      lr_alv_container = mo_splitter_container_new->get_container( 2 ).
 *..,. initialize the navigation bread crumbs
       mo_util->init_navigation_breadcrumbs(
-        mo_splitter_container->get_container( column = 1 row = 1 )
-      ).
+        mo_splitter_container_new->get_container( 1 ) ).
+
+      mo_alv_grid = NEW #( lr_alv_container ).
+
+      IF mo_util->ms_technical_info-activate_paging = abap_true.
+        mo_paging_util->create_paging_toolbar(
+         io_parent = mo_splitter_container_new->get_container( 3 )
+         iv_max_page = mo_util->mv_max_lines_existing DIV mo_util->ms_technical_info-max_lines + 1 ).
+      ENDIF.
     ELSE.
-      lr_alv_container = mo_output_container.
+      mo_splitter_container_new = NEW #(
+        iv_elements              = COND #( WHEN mo_util->ms_technical_info-activate_paging IS INITIAL THEN 1 ELSE 2 )
+        iv_size                  = COND #( WHEN mo_util->ms_technical_info-activate_paging IS INITIAL THEN '*' ELSE '*:26' )
+        io_parent                = mo_output_container
+        if_auto_def_progid_dynnr = abap_true
+        if_no_border             = abap_true ).
+
+      mo_splitter_container_new->set_all_sash_properties(
+        if_visible = abap_false ) .
+
+      lr_alv_container = mo_splitter_container_new->get_container( 1 ).
+
+      " create alv grid
+      mo_alv_grid = NEW #( lr_alv_container ).
+      mo_alv_grid->set_default_toolbar( ).
+      mo_util->mo_alv_grid = mo_alv_grid.
+
+      IF mo_util->ms_technical_info-activate_paging = abap_true.
+        mo_paging_util->create_paging_toolbar(
+         io_parent = mo_splitter_container_new->get_container( 2 )
+         iv_max_page = mo_util->mv_max_lines_existing DIV mo_util->ms_technical_info-max_lines + 1 ).
+      ENDIF.
     ENDIF.
 
-    " create alv grid
-    mo_alv_grid = NEW #( lr_alv_container ).
-    mo_alv_grid->set_default_toolbar( ).
-    mo_util->mo_alv_grid = mo_alv_grid.
 
     SET HANDLER:
        on_double_click FOR mo_alv_grid,
@@ -1403,7 +1423,7 @@ CLASS zcl_dbbr_selection_controller IMPLEMENTATION.
            zif_dbbr_c_selection_functions=>navigate_association OR
            zif_dbbr_c_selection_functions=>show_cds_source OR
            zif_dbbr_c_selection_functions=>hide_other_columns OR
-           zif_dbbr_c_selection_functions=>open_in_sql_console or
+           zif_dbbr_c_selection_functions=>open_in_sql_console OR
            zif_dbbr_c_selection_functions=>determine_line_count.
         RETURN.
     ENDCASE.
@@ -2114,6 +2134,19 @@ CLASS zcl_dbbr_selection_controller IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD show_all_cols.
+    mo_alv_grid->get_frontend_fieldcatalog( IMPORTING et_fieldcatalog = DATA(lt_fieldcat) ).
+
+    LOOP AT lt_fieldcat ASSIGNING FIELD-SYMBOL(<ls_fcat>) WHERE tech = abap_false.
+      <ls_fcat>-no_out = abap_false.
+    ENDLOOP.
+
+    mo_alv_grid->set_frontend_fieldcatalog( lt_fieldcat ).
+
+    mo_alv_grid->refresh_table_display( is_stable = VALUE #( row = abap_true col = abap_true ) ).
+  ENDMETHOD.
+
+
   METHOD show_hidden_rows.
     FIELD-SYMBOLS: <lt_table> TYPE STANDARD TABLE.
 
@@ -2336,6 +2369,9 @@ CLASS zcl_dbbr_selection_controller IMPLEMENTATION.
   METHOD zif_uitb_screen_controller~free_screen_resources.
     IF mo_util IS BOUND.
       mo_util->unregister_evt_handlers( ).
+    ENDIF.
+    IF mo_splitter_container_new IS BOUND.
+      mo_splitter_container_new->zif_uitb_gui_control~free( ).
     ENDIF.
   ENDMETHOD.
 
@@ -2583,5 +2619,10 @@ CLASS zcl_dbbr_selection_controller IMPLEMENTATION.
     DATA(lv_selection_count_text) = mo_util->get_sel_count_text( EXPORTING iv_filtered_line_count = lv_filtered_line_count ).
 
     SET TITLEBAR 'OUTPUT_TITLE' OF PROGRAM zif_dbbr_c_report_id=>output WITH lv_select_type_text lv_selection_count_text.
+  ENDMETHOD.
+
+
+  METHOD on_refresh_page.
+    refresh( ).
   ENDMETHOD.
 ENDCLASS.
