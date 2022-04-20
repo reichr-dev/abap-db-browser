@@ -238,8 +238,8 @@ CLASS zcl_dbbr_selection_util DEFINITION
     DATA mr_alv_util TYPE REF TO zcl_dbbr_output_alv_util .
     DATA mv_source_entity_id TYPE zsat_entity_id.
     DATA mt_source_where_cond TYPE string_table.
-*    DATA mt_source_param_values TYPE zif_sat_ty_global=>ty_t_cds_param_value.
     DATA mv_source_params TYPE string.
+    DATA mo_gui_timer TYPE REF TO cl_gui_timer.
 
     "! <p class="shorttext synchronized" lang="en">Adds column for hiding rows</p>
     METHODS add_hide_flag_column .
@@ -385,6 +385,8 @@ CLASS zcl_dbbr_selection_util DEFINITION
       FOR EVENT count_query_finished OF zcl_dbbr_sql_selection
       IMPORTING
         ev_count.
+    METHODS on_timer_finished
+        FOR EVENT finished OF cl_gui_timer.
   PRIVATE SECTION.
     DATA mo_text_field_util TYPE REF TO zcl_dbbr_text_field_ui_util.
 ENDCLASS.
@@ -565,6 +567,12 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
       ENDIF.
 
       CLEAR: ms_technical_info-activate_alv_live_filter.
+    ENDIF.
+
+    IF ms_technical_info-async_max_rows_determination = abap_true.
+      mo_gui_timer = NEW #( ).
+      mo_gui_timer->interval = 1.
+      SET HANDLER on_timer_finished FOR mo_gui_timer.
     ENDIF.
   ENDMETHOD.
 
@@ -928,7 +936,6 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
         IF ls_field-convexit <> space.
           ls_field-no_convext = abap_true.
           CLEAR ls_field-edit_mask.
-          ls_field-convexit = 'EMPTY'.
         ENDIF.
       ELSE. " use conversion exit
         IF  ls_field-convexit = space.
@@ -1615,6 +1622,8 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
                    <lt_selection> TYPE table.
 
     " generate the program to perform the data selection
+    CLEAR mv_max_lines_existing.
+
     IF ms_technical_info-activate_alv_live_filter = abap_true OR
        if_refresh_only = abap_false.
 
@@ -1647,18 +1656,22 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
       mv_selected_lines = lines( <lt_table> ).
 
       " determine the maximum number of lines
-      IF mv_selected_lines = ms_technical_info-max_lines.
+      IF mv_selected_lines = ms_technical_info-max_lines AND ms_technical_info-disable_auto_max_rows_det = abap_false.
 
         zcl_dbbr_screen_helper=>show_progress( iv_text = |{ TEXT-007 }| iv_progress = 25 ).
 
         IF mf_group_by = abap_true OR mf_aggregation = abap_true.
           IF ms_technical_info-async_max_rows_determination = abap_true.
+            mo_gui_timer->cancel( EXCEPTIONS error = 1 ).
+            mo_gui_timer->run( EXCEPTIONS error = 1 ).
             mo_sql_selection->determine_group_by_size_async( mr_t_temp_data ).
           ELSE.
             mv_max_lines_existing = mo_sql_selection->determine_size_for_group_by( mr_t_temp_data ).
           ENDIF.
         ELSE.
           IF ms_technical_info-async_max_rows_determination = abap_true.
+            mo_gui_timer->cancel( EXCEPTIONS error = 1 ).
+            mo_gui_timer->run( EXCEPTIONS error = 1 ).
             mo_sql_selection->determine_size_async( ).
           ELSE.
             mv_max_lines_existing = mo_sql_selection->determine_size( ).
@@ -1901,7 +1914,7 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD get_sel_count_text.
-    IF mf_custom_query_active = abap_true.
+    IF mf_custom_query_active = abap_true OR ms_technical_info-disable_auto_max_rows_det = abap_true.
       rv_result = |{ iv_filtered_line_count NUMBER = USER } Entries|.
     ELSE.
       DATA(lv_max_line_count) = COND #(
@@ -1916,6 +1929,9 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
     IF mo_sql_selection IS NOT INITIAL.
       mo_sql_selection->unregister_evt_handlers( ).
       SET HANDLER on_count_async_finished FOR mo_sql_selection ACTIVATION space.
+      IF mo_gui_timer IS BOUND.
+        mo_gui_timer->cancel( EXCEPTIONS error = 1 ).
+      ENDIF.
     ENDIF.
   ENDMETHOD.
 
@@ -1924,17 +1940,19 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
     result = VALUE #( BASE result
       ( zif_dbbr_c_selection_functions=>change_cds_parameters )
       ( zif_dbbr_c_selection_functions=>show_cds_source )
-      ( zif_dbbr_c_selection_functions=>edit_data )
-    ).
+      ( zif_dbbr_c_selection_functions=>edit_data ) ).
 
     IF mf_aggregation = abap_true OR
        mf_group_by    = abap_true.
 
-      result = VALUE #(
-       BASE result
+      result = VALUE #( BASE result
        ( zif_dbbr_c_selection_functions=>toggle_entity_info_header )
-       ( zif_dbbr_c_selection_functions=>group_by_selected_columns )
-      ).
+       ( zif_dbbr_c_selection_functions=>group_by_selected_columns ) ).
+    ENDIF.
+
+    IF ms_technical_info-disable_auto_max_rows_det = abap_false.
+      result = VALUE #( BASE result
+       ( zif_dbbr_c_selection_functions=>determine_line_count ) ).
     ENDIF.
 
     IF NOT is_f4_saving_allowed( ).
@@ -1996,6 +2014,21 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
       WHEN zif_dbbr_c_selection_functions=>open_in_sql_console.
         CLEAR cv_function.
         open_in_sql_console( ).
+
+      WHEN zif_dbbr_c_selection_functions=>determine_line_count.
+        CLEAR cv_function.
+        zcl_dbbr_screen_helper=>show_progress( iv_text = |{ TEXT-007 }| ).
+
+        TRY.
+            IF mf_group_by = abap_true OR mf_aggregation = abap_true.
+              DATA(lv_line_count) = mo_sql_selection->determine_size_for_group_by( mr_t_temp_data ).
+            ELSE.
+              lv_line_count = mo_sql_selection->determine_size( ).
+            ENDIF.
+            MESSAGE i024(zdbbr_info) WITH |{ lv_line_count NUMBER = USER }|.
+          CATCH zcx_dbbr_selection_common INTO DATA(lx_sel_error).
+            lx_sel_error->zif_sat_exception_message~print( iv_msg_type = 'I' ).
+        ENDTRY.
     ENDCASE.
   ENDMETHOD.
 
@@ -2102,7 +2135,14 @@ CLASS zcl_dbbr_selection_util IMPLEMENTATION.
 
   METHOD on_count_async_finished.
     mv_max_lines_existing = ev_count.
-    zcl_uitb_screen_util=>set_function_code( ).
+  ENDMETHOD.
+
+  METHOD on_timer_finished.
+    IF mv_max_lines_existing > 0.
+      zcl_uitb_screen_util=>set_function_code( ).
+    ELSE.
+      mo_gui_timer->run( EXCEPTIONS error = 1 ).
+    ENDIF.
   ENDMETHOD.
 
 ENDCLASS.
