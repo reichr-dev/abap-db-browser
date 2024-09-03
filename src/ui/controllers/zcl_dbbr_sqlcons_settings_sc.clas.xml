@@ -3,9 +3,9 @@
  <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
    <VSEOCLASS>
-    <CLSNAME>ZCL_DBBR_EB_SETTINGS_VIEW</CLSNAME>
+    <CLSNAME>ZCL_DBBR_SQLCONS_SETTINGS_SC</CLSNAME>
     <LANGU>E</LANGU>
-    <DESCRIPT>Controller for User settings of Entity Browser</DESCRIPT>
+    <DESCRIPT>Controller for SQL Console settings</DESCRIPT>
     <STATE>1</STATE>
     <CLSCCINCL>X</CLSCCINCL>
     <FIXPT>X</FIXPT>
@@ -15,26 +15,20 @@
     <item>
      <ID>I</ID>
      <KEY>001</KEY>
-     <ENTRY>Find CDS Views</ENTRY>
-     <LENGTH>21</LENGTH>
+     <ENTRY>Entry screen</ENTRY>
+     <LENGTH>23</LENGTH>
     </item>
     <item>
      <ID>I</ID>
      <KEY>002</KEY>
-     <ENTRY>Find Database Tables</ENTRY>
-     <LENGTH>52</LENGTH>
+     <ENTRY>ALV List Output</ENTRY>
+     <LENGTH>25</LENGTH>
     </item>
     <item>
      <ID>I</ID>
      <KEY>003</KEY>
-     <ENTRY>Find Queries</ENTRY>
-     <LENGTH>22</LENGTH>
-    </item>
-    <item>
-     <ID>I</ID>
-     <KEY>004</KEY>
-     <ENTRY>Find Database Views</ENTRY>
-     <LENGTH>29</LENGTH>
+     <ENTRY>Favorites</ENTRY>
+     <LENGTH>19</LENGTH>
     </item>
    </TPOOL>
    <DESCRIPTIONS>
@@ -42,16 +36,6 @@
      <CMPNAME>CONSTRUCTOR</CMPNAME>
      <LANGU>E</LANGU>
      <DESCRIPT>CONSTRUCTOR</DESCRIPT>
-    </SEOCOMPOTX>
-    <SEOCOMPOTX>
-     <CMPNAME>INITIALIZE_SETTINGS</CMPNAME>
-     <LANGU>E</LANGU>
-     <DESCRIPT>Initialize Entity Browser Settings</DESCRIPT>
-    </SEOCOMPOTX>
-    <SEOCOMPOTX>
-     <CMPNAME>SAVE_SETTINGS</CMPNAME>
-     <LANGU>E</LANGU>
-     <DESCRIPT>Save current settings</DESCRIPT>
     </SEOCOMPOTX>
    </DESCRIPTIONS>
   </asx:values>

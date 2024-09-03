@@ -7,7 +7,7 @@
 *******************************************************************
 *   User-defined Include-files (if necessary).                    *
 *******************************************************************
-  INCLUDE zuitb_data_cache.
   INCLUDE zuitb_screen_util.
+  INCLUDE zuitb_data_cache.
 
   INCLUDE lzdbbr_user_settingss01.

@@ -4,7 +4,6 @@
   <asx:values>
    <DEVC>
     <CTEXT>DB Browser</CTEXT>
-    <SRV_CHECK>X</SRV_CHECK>
    </DEVC>
   </asx:values>
  </asx:abap>

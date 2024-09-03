@@ -1,14 +1,18 @@
 LOAD-OF-PROGRAM.
-  ZCL_SAT_SYSTEM_HELPER=>set_locale_language( ).
+  zcl_sat_system_helper=>set_locale_language( ).
 
 AT SELECTION-SCREEN.
   CASE sy-dynnr.
 
     WHEN zif_dbbr_screen_ids=>c_user_settings-main_screen.
-      gr_user_settings_controller->zif_uitb_screen_controller~handle_user_command( CHANGING cv_function_code = sscrfields-ucomm ).
+      gr_user_settings_controller->zif_uitb_screen_controller~handle_user_command(
+        CHANGING cv_function_code = sscrfields-ucomm ).
 
     WHEN zif_dbbr_screen_ids=>c_show_eb_settings.
       gr_eb_settings_view->pai( CHANGING cv_function_code = sscrfields-ucomm ).
+
+     WHEN zif_dbbr_screen_ids=>c_sqlcons_settings.
+      gr_sqlcons_settings_controller->pai( CHANGING cv_function_code = sscrfields-ucomm ).
   ENDCASE.
 
 AT SELECTION-SCREEN ON EXIT-COMMAND.
@@ -19,6 +23,10 @@ AT SELECTION-SCREEN ON EXIT-COMMAND.
 
     WHEN zif_dbbr_screen_ids=>c_show_eb_settings.
       gr_eb_settings_view->cancel( ).
+
+    WHEN zif_dbbr_screen_ids=>c_sqlcons_settings.
+      gr_sqlcons_settings_controller->cancel( ).
+
   ENDCASE.
 
 AT SELECTION-SCREEN OUTPUT.
@@ -31,8 +39,8 @@ AT SELECTION-SCREEN OUTPUT.
          zif_dbbr_screen_ids=>c_user_settings-data_selection_tab OR
          zif_dbbr_screen_ids=>c_user_settings-output_tab OR
          zif_dbbr_screen_ids=>c_user_settings-cds_view_settings.
-*.... set button texts here because of some reason not every system
-*.... returns the tab buttons from program source code analysing
+      " .... set button texts here because of some reason not every system
+      " .... returns the tab buttons from program source code analyzing
       btn_intr = 'General'(005).
       btn_fav = 'Object Navigator'(002).
       btn_alv = 'Data Output'(003).
@@ -40,12 +48,15 @@ AT SELECTION-SCREEN OUTPUT.
       btn_dsel = 'Data Selection'(004).
       btn_cds = 'CDS View Settings'(006).
 
-*.... Perform some initialization for the first call
-      gr_user_settings_controller->initialize_screen(
-        CHANGING cs_tabs = setting_type ).
+      " .... Perform some initialization for the first call
+      gr_user_settings_controller->initialize_screen( CHANGING cs_tabs = setting_type ).
 
       gr_user_settings_controller->zif_uitb_screen_controller~pbo( ).
 
     WHEN zif_dbbr_screen_ids=>c_show_eb_settings.
       gr_eb_settings_view->pbo( ).
+
+    WHEN zif_dbbr_screen_ids=>c_sqlcons_settings.
+      gr_sqlcons_settings_controller->pbo( ).
+
   ENDCASE.
